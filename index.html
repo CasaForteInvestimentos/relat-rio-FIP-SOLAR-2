@@ -190,8 +190,7 @@ function processSheet(rows){
     var contrat=parseNum(row["Energia Contratual"]);
     if(contrat!=null&&contrat<10)contrat=null; // guard: valores < 10 kWh são ruído/erro
     var vur=parseNum(row["VUR (R$/Kwh)"])||parseNum(row["VUR (R$/KWh)"]);
-    var comp=parseNum(row["Energia Compensada"]);
-    data.push({date:date,dateStr:fmtDate(date),conc:conc,superv:superv,p50:p50,p75:p75,media:media,contrat:contrat,vur:vur,comp:comp});
+    data.push({date:date,dateStr:fmtDate(date),conc:conc,superv:superv,p50:p50,p75:p75,media:media,contrat:contrat,vur:vur});
   }
   data.sort(function(a,b){return a.date-b.date;});
   var first=-1;
@@ -332,14 +331,13 @@ function displayName(name){return name.replace(/([A-Za-záéíóúãõâêôç]+
 function renderGeral(el){
   var title=document.createElement("div");title.className="st";title.textContent="Visao Geral do Fundo";el.appendChild(title);
   var usinas=SHEETS.filter(function(n){return allData[n]&&allData[n].length>0;});
-  var totC=0,totCt=0,totCp=0,totRec=0;
+  var totC=0,totCt=0,totRec=0;
   var mmap={};
   usinas.forEach(function(name){
     var rows=applyFilter(allData[name]);
     rows.forEach(function(r){
       if(r.conc!=null)totC+=r.conc;
       if(r.contrat!=null)totCt+=r.contrat;
-      if(r.comp!=null)totCp+=r.comp;
       if(r.conc!=null&&r.vur!=null)totRec+=r.conc*r.vur;
       var k=r.dateStr;
       if(!mmap[k])mmap[k]={date:r.date,dateStr:r.dateStr,conc:0,contrat:0,p50:0,p50n:0,p75:0,p75n:0,media:0,median:0};
@@ -357,7 +355,6 @@ function renderGeral(el){
   kg.innerHTML=
     kcard("Energia Total Injetada",(totC/1000).toLocaleString("pt-BR",{minimumFractionDigits:1,maximumFractionDigits:1}),"MWh","Concessionaria - periodo filtrado")+
     kcard("Energia Contratual",(totCt/1000).toLocaleString("pt-BR",{minimumFractionDigits:1,maximumFractionDigits:1}),"MWh","Total contratado no periodo")+
-    kcard("Energia Compensada",(totCp/1000).toLocaleString("pt-BR",{minimumFractionDigits:1,maximumFractionDigits:1}),"MWh","Total compensada no periodo")+
     kcard("Receita Total Estimada",fmtBRL(totRec),"","VUR x Criterio de remuneracao")+
     '<div class="kc"><div class="kl">Performance Geral</div><div class="kd">'+(devPct!=null?(devPct>=0?"+":"")+devPct.toFixed(1)+"%":"--")+'</div><div class="kp '+devCls(devPct)+'">'+(ratio!=null?fmtPct(ratio)+" do contratual":"--")+'</div></div>'+
     kcard("Usinas Ativas",usinas.length,"usinas",(SHEETS.length-usinas.length)+" em implantacao");
@@ -417,7 +414,7 @@ function renderUsina(name,el){
   var isFullPeriod=toYM(filterStart)===toYM(new Date(Math.min.apply(null,allRows.map(function(r){return r.date;}))))&&toYM(filterEnd)===toYM(new Date(Math.max.apply(null,allRows.map(function(r){return r.date;}))));
   var pl=isFullPeriod?allRows[0].dateStr+" - "+allRows[allRows.length-1].dateStr:fmtDate(filterStart)+" - "+fmtDate(filterEnd);
   var title=document.createElement("div");title.className="st";title.textContent=displayName(name);el.appendChild(title);
-  var totC=sum(rows,"conc"),totCt=sum(rows,"contrat"),totCp=sum(rows,"comp");
+  var totC=sum(rows,"conc"),totCt=sum(rows,"contrat");
   var totRx=rows.reduce(function(a,r){return a+(r.conc&&r.vur?r.conc*r.vur:0);},0);
   var ratio=totCt>0?totC/totCt:null,devPct=ratio!=null?(ratio-1)*100:null;
   var kg=document.createElement("div");kg.className="kg";
@@ -426,8 +423,7 @@ function renderUsina(name,el){
     kcard("Injetada Total",rows.length?(totC/1000).toLocaleString("pt-BR",{minimumFractionDigits:1,maximumFractionDigits:1}):"--",rows.length?"MWh":"",pl)+
     kcard("Contratual Total",totCt>0?(totCt/1000).toLocaleString("pt-BR",{minimumFractionDigits:1,maximumFractionDigits:1}):"--",totCt>0?"MWh":"",pl)+
     '<div class="kc"><div class="kl">Performance Acumulada</div><div class="kd">'+(devPct!=null?(devPct>=0?"+":"")+devPct.toFixed(1)+"%":"--")+'</div><div class="kp '+devCls(devPct)+'">'+(ratio!=null?fmtPct(ratio)+" do contratual":"--")+'</div></div>'+
-    kcard("Energia Compensada",rows.length?(totCp/1000).toLocaleString("pt-BR",{minimumFractionDigits:1,maximumFractionDigits:1}):"--",rows.length?"MWh":"",pl)+
-    kcard("Receita Estimada",fmtBRL(totRx),"",totCp>0?"VUR x Compensada":"VUR x Concessionaria");
+    kcard("Receita Estimada",fmtBRL(totRx),"","VUR x Concessionaria");
   el.appendChild(kg);
 
   var labels=rows.map(function(r){return r.dateStr;});
@@ -478,7 +474,6 @@ function renderUsina(name,el){
 
   var dvEl=document.createElement("div");dvEl.className="dv";el.appendChild(dvEl);
   var tt=document.createElement("div");tt.className="st";tt.style.fontSize="15px";tt.textContent="Historico Mensal (completo)";el.appendChild(tt);
-  var hasComp=allRows.some(function(r){return r.comp!=null;});
   var hasVur=allRows.some(function(r){return r.vur!=null;});
   var tbody="";
   var rev=allRows.slice().reverse();
@@ -486,10 +481,10 @@ function renderUsina(name,el){
     var r=rev[i];
     if(r.conc==null&&r.contrat==null)continue;
     var rt=r.contrat>0?r.conc/r.contrat:null,dv2=rt!=null?(rt-1)*100:null;
-    tbody+="<tr><td>"+r.dateStr+"</td><td>"+(r.conc!=null?fmtMWh(r.conc):"--")+"</td><td>"+(r.contrat>0?fmtMWh(r.contrat):"--")+"</td><td>"+(r.p50!=null?fmtMWh(r.p50):"--")+"</td><td style='color:var(--gold-light);font-weight:600'>"+(rt!=null?fmtPct(rt):"--")+"</td><td class='"+devCls(dv2)+"'>"+(dv2!=null?(dv2>=0?"+":"")+dv2.toFixed(1)+"%":"--")+"</td>"+(hasComp?"<td>"+(r.comp!=null?fmtMWh(r.comp):"--")+"</td>":"")+(hasVur?"<td>"+(r.vur!=null?"R$ "+r.vur.toFixed(4):"--")+"</td>":"")+"</tr>";
+    tbody+="<tr><td>"+r.dateStr+"</td><td>"+(r.conc!=null?fmtMWh(r.conc):"--")+"</td><td>"+(r.contrat>0?fmtMWh(r.contrat):"--")+"</td><td>"+(r.p50!=null?fmtMWh(r.p50):"--")+"</td><td style='color:var(--gold-light);font-weight:600'>"+(rt!=null?fmtPct(rt):"--")+"</td><td class='"+devCls(dv2)+"'>"+(dv2!=null?(dv2>=0?"+":"")+dv2.toFixed(1)+"%":"--")+"</td>"+(hasVur?"<td>"+(r.vur!=null?"R$ "+r.vur.toFixed(4):"--")+"</td>":"")+"</tr>";
   }
   var tc=document.createElement("div");tc.className="tcard";
-  tc.innerHTML='<div class="tsc"><table><thead><tr><th style="text-align:left">Mes</th><th>Injetada</th><th>Contratual</th><th>P50</th><th>Performance</th><th>Desvio</th>'+(hasComp?"<th>Compensada</th>":"")+(hasVur?"<th>VUR</th>":"")+'</tr></thead><tbody>'+tbody+'</tbody></table></div>';
+  tc.innerHTML='<div class="tsc"><table><thead><tr><th style="text-align:left">Mes</th><th>Injetada</th><th>Contratual</th><th>P50</th><th>Performance</th><th>Desvio</th>'+(hasVur?"<th>VUR</th>":"")+'</tr></thead><tbody>'+tbody+'</tbody></table></div>';
   el.appendChild(tc);
 }
 
@@ -523,15 +518,14 @@ function renderGrupo(el){
       return;
     }
     // KPIs
-    var totC=0,totCt=0,totCp=0,totRec=0;
+    var totC=0,totCt=0,totRec=0;
     var mmap={};
     selected.forEach(function(name){
       var rows=applyFilter(allData[name]);
       rows.forEach(function(r){
         if(r.conc!=null)totC+=r.conc;
         if(r.contrat!=null)totCt+=r.contrat;
-        if(r.comp!=null)totCp+=r.comp;
-        if(r.conc!=null&&r.vur!=null)totRec+=r.conc*r.vur;
+          if(r.conc!=null&&r.vur!=null)totRec+=r.conc*r.vur;
         var k=r.dateStr;
         if(!mmap[k])mmap[k]={date:r.date,dateStr:r.dateStr,conc:0,contrat:0,p50:0,p50n:0,p75:0,p75n:0,media:0,median:0};
         if(r.conc!=null)mmap[k].conc+=r.conc;
@@ -548,7 +542,6 @@ function renderGrupo(el){
     kg.innerHTML=
       kcard("Energia Total Injetada",(totC/1000).toLocaleString("pt-BR",{minimumFractionDigits:1,maximumFractionDigits:1}),"MWh","Concessionaria - periodo filtrado")+
       kcard("Energia Contratual",(totCt/1000).toLocaleString("pt-BR",{minimumFractionDigits:1,maximumFractionDigits:1}),"MWh","Total contratado no periodo")+
-      kcard("Energia Compensada",(totCp/1000).toLocaleString("pt-BR",{minimumFractionDigits:1,maximumFractionDigits:1}),"MWh","Total compensada no periodo")+
       kcard("Receita Total Estimada",fmtBRL(totRec),"","VUR x Criterio de remuneracao")+
       '<div class="kc"><div class="kl">Performance Geral</div><div class="kd">'+(devPct!=null?(devPct>=0?"+":"")+devPct.toFixed(1)+"%":"--")+'</div><div class="kp '+devCls(devPct)+'">'+(ratio!=null?fmtPct(ratio)+" do contratual":"--")+'</div></div>';
     resultDiv.appendChild(kg);
